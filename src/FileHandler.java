@@ -1,58 +1,41 @@
 import java.io.*;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 
-public class FileHandler {
-    private String request,response,fileName,file;
-    private int port;
-    List<String> wordList = new LinkedList<String>();
-    private Socket client, service;
-    private ServerSocket serverSocket;
-    private ObjectOutputStream outputStream;
+public class FileHandler extends Handler{
+    private String fileName,file;
+    private DataOutputStream outputStream;
     private DataInputStream inputStream;
 
 
     public FileHandler(String fileName,int port){
+        super(port);
         this.fileName = fileName;
-        this.port = port;
     }
 
+    @Override
     public void start(){
-        System.out.println("Server controller started");
-        try {
-            serverSocket = new ServerSocket(port);
-            while (true) {
+        super.start();
+        System.out.println("Server started");
+        while(true) {
+            try {
                 client = serverSocket.accept();
-                DataInputStream in = new DataInputStream(client.getInputStream());
-                DataOutputStream out = new DataOutputStream(client.getOutputStream());
-                    request = in.readUTF();
-                    System.out.println(request);
-                    if(request.startsWith(Command.searchWord)) {
+                    inputStream = new DataInputStream(client.getInputStream());
+                    outputStream = new DataOutputStream(client.getOutputStream());
+                    request = inputStream.readUTF();
+                    System.out.println("REQUEST: "+request);
+                    if (request.startsWith(Command.searchWord)) {
                         sendRequest(request.substring(7));
-                        out.writeUTF(response);
-                        out.flush();
-                    }else {
+                        outputStream.writeUTF(response);
+                        outputStream.flush();
+                    } else {
                         stop();
                         return;
                     }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void stop() {
-        try {
-            service = new Socket("localhost",4646);
-            outputStream = new ObjectOutputStream(service.getOutputStream());
-            outputStream.writeUTF("stop");
-            outputStream.flush();
-            serverSocket.close();
-            client.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     public void loadFile(){
@@ -72,14 +55,16 @@ public class FileHandler {
 
     private void sendRequest(String key){
         try {
-            service = new Socket("localhost",4646);
-            outputStream = new ObjectOutputStream(service.getOutputStream());
-            inputStream = new DataInputStream(service.getInputStream());
-            outputStream.writeUTF("search");
-            outputStream.writeObject(wordList);
-            outputStream.writeUTF(key);
-            outputStream.flush();
-            response = inputStream.readUTF();
+            Searcher searcher = new Searcher(4646);
+            new Thread(searcher).start();
+            service = new Socket("localhost", searcher.port);
+            out = new ObjectOutputStream(service.getOutputStream());
+            in = new ObjectInputStream(service.getInputStream());
+            out.writeUTF("search");
+            out.writeObject(wordList);
+            out.writeUTF(key);
+            out.flush();
+            response = in.readUTF();
 
         } catch (IOException e) {
             e.printStackTrace();
